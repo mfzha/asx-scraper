@@ -282,6 +282,31 @@ def compute_fundamentals(df):
     df.columns = ['Symbol', 'Name', 'Market cap', 'Total current liabilities', 'Total fixed liabilities', 'Cash', 'EBIT', 'EBIT/EV ratio', 'Net working capital', 'Net assets', 'Return on Capital']
     return df
 
+def pick_stocks(df):
+    '''
+    input: Pandas DataFrame 
+        [symbol, name, Market Cap, Current debt, Fixed debt, Cash, EBIT, EV, EBIT/EV, NWC, NA, RoC]
+    output: Pandas DataFrame
+        [aggregate rank, EBIT/EV rank, RoC rank, symbol, name, Market Cap, Current debt, Fixed debt, Cash, NWC, NA] 
+        sorted by aggregate rank
+    '''
+
+    df.sort_values('EBIT/EV ratio') # sort by EBIT/EV
+    for i in range(len(df.index)): # assign EBIT/EV rank
+        df.at[i, 'EBIT/EV rank'] = i + 1
+      
+    df.sort_values('Return on capital') # sort by RoC
+    for i in range(len(df.index)): # assign RoC rank
+        df.at[i, 'RoC rank'] = i + 1
+    
+    df['Aggregate rank'] = df['EBIT/EV rank'] + df['RoC rank'] # Build dataframe by vectorising
+
+    df.drop(columns = ['EBIT', 'Return on capital', 'EBIT/EV ratio'])
+    cols = ['Aggregate rank', 'EBIT/EV rank', 'RoC rank', 'Symbol', 'Name', 'Market cap', 'Total current liabilities', 'Total fixed liabilities', 'Cash', 'Net working capital', 'Net assets']
+    df = df[cols]
+
+    return df.sort_values('Aggregate rank') # Sort by aggregate rank
+
 def main():
     start = timeit.default_timer()
 

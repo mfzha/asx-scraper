@@ -17,9 +17,6 @@ Some functions based on code excerpts from Matt Button's "How to scrape Yahoo Fi
 
 ## Todo
 
-**Short term**:
-* Compute aggregate ranks
-
 **Long term**:
 * Retrieve stock tickers for all mid and high cap stocks
 * Multithread the scraping so we don't wait a billion years
