@@ -209,7 +209,7 @@ def scrape_symbol(symbol):
 
     # Make one DataFrame to combine all financials
     df = symbol_statements[symbol] \
-        .join(symbol_statements['balance-sheet']) \
+        .join(symbol_statements['balance-sheet'], on='Date', how='outer', rsuffix=' - Balance Sheet') \
         .join(symbol_statements['financials'], on='Date', how='outer', rsuffix=' - Income Statement') \
         .join(symbol_statements['cash-flow'], on='Date', how='outer', rsuffix=' - Cash Flow') \
         .dropna(axis=1, how='all') \
