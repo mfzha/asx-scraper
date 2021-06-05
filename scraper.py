@@ -279,7 +279,7 @@ def compute_fundamentals(df):
             increment = 0 # reset counter
 
     df = pd.DataFrame(fundamentals)
-    df.columns = ['Symbol', 'Name', 'Market cap', 'Total current liabilities', 'Total fixed liabilities', 'Cash', 'EBIT', 'EBIT/EV ratio', 'Net working capital', 'Net assets', 'Return on Capital']
+    df.columns = ['Symbol', 'Name', 'Market cap', 'Total current liabilities', 'Total fixed liabilities', 'Cash', 'EBIT', 'EBIT/EV ratio', 'Net working capital', 'Net assets', 'Return on capital']
     return df
 
 def pick_stocks(df):
@@ -291,11 +291,12 @@ def pick_stocks(df):
         sorted by aggregate rank
     '''
 
-    df.sort_values('EBIT/EV ratio') # sort by EBIT/EV
+    df.sort_values(by=['EBIT/EV ratio'], ascending=False, inplace=True, ignore_index=True) # sort by EBIT/EV
+    # we sort with ignore_index=True so that the assignment of ranks works correctly in the following loop
     for i in range(len(df.index)): # assign EBIT/EV rank
         df.at[i, 'EBIT/EV rank'] = i + 1
       
-    df.sort_values('Return on capital') # sort by RoC
+    df.sort_values(by=['Return on capital'], ascending=False, inplace=True, ignore_index=True) # sort by RoC
     for i in range(len(df.index)): # assign RoC rank
         df.at[i, 'RoC rank'] = i + 1
     
@@ -305,7 +306,7 @@ def pick_stocks(df):
     cols = ['Aggregate rank', 'EBIT/EV rank', 'RoC rank', 'Symbol', 'Name', 'Market cap', 'Total current liabilities', 'Total fixed liabilities', 'Cash', 'Net working capital', 'Net assets']
     df = df[cols]
 
-    return df.sort_values('Aggregate rank') # Sort by aggregate rank
+    return df.sort_values(by=['Aggregate rank'], ignore_index=True) # Sort by aggregate rank
 
 def main():
     start = timeit.default_timer()
