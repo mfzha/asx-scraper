@@ -119,8 +119,80 @@ def scrape_table(url):
 
     return df
 
+def scrape_basics(symbol, url):  
+    # Repeat similar process to the scrape_page() function
+    page = get_page(url)
+    tree = html.fromstring(page.content)
+    
+    # Find name:
+    names = tree.xpath("//div[contains(@class, 'D(ib)')]")
+    parsed_name_rows = []
+    for table_row in names:
+        parsed_row = ['Name']
+        # grab the current div
+        el = table_row.xpath("./div")
+        exit = 0
+
+        if el: 
+            for rs in el:
+                try:
+                    # Find the name
+                    (text,) = rs.xpath('.//h1/text()[1]')
+                    parsed_row.append(str(text).replace(',',''))
+                    exit = 1
+                    break
+                except Exception as e:
+                    continue
+        
+        if exit == 1:
+            parsed_name_rows.append(parsed_row)
+            break
+    
+    # Market Cap: 
+    market_cap = tree.xpath("//tr[contains(@class, 'Bxz(bb)')]")
+
+    parsed_market_cap_rows = []
+
+    for table_row in market_cap:
+        parsed_row = []
+        # grab the current div
+        el = table_row.xpath("./td")
+
+        if el and len(el) == 2:
+
+            # convert EL[0] to text
+            (text,) = el[0].xpath('.//span/text()[1]')
+            test = str(text).replace(',','')
+
+            parsed_row.append(test)
+
+            if test == 'Market cap':
+                (cap,) = el[1].xpath('.//span/text()[1]')
+                if str(cap).endswith('B'): # market cap in the billions
+                    mc = int(float(str(cap).strip('B'))*(10**9))
+                if str(cap).endswith('M'): # market cap in the millions
+                    mc = int(float(str(cap).strip('B'))*(10**6))
+                parsed_row.append(mc)
+
+                break
+            
+    parsed_market_cap_rows.append(parsed_row)
+
+    #df_symbol = pd.DataFrame([['Symbol', symbol]])
+    df_date = pd.DataFrame([['Date', date.today().strftime('%d/%m/%Y')]])
+    df_name = pd.DataFrame(parsed_name_rows)
+    df_mc = pd.DataFrame(parsed_market_cap_rows)
+    
+    df = pd.concat([df_date, df_name, df_mc], sort=True)
+
+    df = df.set_index(0) # Match indexing of the other DataFrames
+    df = df.transpose()
+
+    return df
+
 def scrape_symbol(symbol):
     symbol_statements = {
+        symbol : None,
         'financials': None,
         'balance-sheet': None,
         'cash-flow': None
@@ -128,11 +200,16 @@ def scrape_symbol(symbol):
 
     # Get all financial statements
     for key in symbol_statements:
+        if key.endswith('AX'):
+            url = 'https://au.finance.yahoo.com/quote/' + symbol + '?p=' + symbol
+            symbol_statements[key] = scrape_basics(symbol, url).set_index('Date') # require setting index to deal with column overlap on the merge
+        else:
         url = 'https://au.finance.yahoo.com/quote/' + symbol + '/' + key + '?p=' + symbol
         symbol_statements[key] = scrape_table(url).set_index('Date')
 
     # Make one DataFrame to combine all financials
-    df = symbol_statements['balance-sheet'] \
+    df = symbol_statements[symbol] \
+        .join(symbol_statements['balance-sheet']) \
         .join(symbol_statements['financials'], on='Date', how='outer', rsuffix=' - Income Statement') \
         .join(symbol_statements['cash-flow'], on='Date', how='outer', rsuffix=' - Cash Flow') \
         .dropna(axis=1, how='all') \
