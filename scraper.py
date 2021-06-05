@@ -224,6 +224,64 @@ def scrape_multiple(symbols):
     # Make one DataFrame to combine financial statements from a list of symbols
     return pd.concat([scrape_symbol(symbol) for symbol in symbols], sort=False)
 
+def sanity_check(element):
+    if not isinstance(element, int):
+        element = 0
+    return element
+
+def compute_fundamentals(df):
+    '''
+    input: Pandas DataFrame
+    output: Pandas DataFrame
+        [symbol, name, Market Cap, Current debt, Fixed debt, Cash, EBIT, EV, EBIT:EV, NWC, NA, RoC]
+    
+    Compute fundamentals for the _most recent year_ (exclude ttm)
+    '''
+
+    prev_symbol = ''
+    increment = 0
+    fundamentals = []
+
+    for index in range(len(df.index)):
+        
+        symbol = df.iloc[index]['Symbol']
+    
+        if symbol == prev_symbol: # same ticker as before
+            increment += 1
+            if increment == 1: # haven't retrieved data yet
+                # Retrieve basics
+                total_current_assets = df.iloc[index]['Total current assets']
+                total_fixed_assets = df.iloc[index]['Total non-current assets']
+                total_current_liabilities = df.iloc[index]['Total current liabilities']
+                total_fixed_liabilities = df.iloc[index]['Total non-current liabilities']
+                goodwill = sanity_check(df.iloc[index]['Goodwill']) # must check if exists
+                intangibles = sanity_check(df.iloc[index]['Intangible assets']) # must check if exists
+                cash = df.iloc[index]['Cash and cash equivalents']
+                EBIT = df.iloc[index]['Operating income or loss']
+                print('EBIT', EBIT)
+
+                # Compute the following
+                EV = MC + total_current_liabilities + total_fixed_liabilities - cash
+                print('EV', EV)
+                EBIT_EV = EBIT/EV
+                NWC = total_current_assets - total_current_liabilities
+                NA = total_fixed_assets - goodwill - intangibles
+                RoC = EBIT/(NWC + NA)
+
+                fundamentals.append([symbol, name, MC, total_current_liabilities, total_fixed_liabilities, cash, EBIT, EBIT_EV, NWC, NA, RoC])
+            else:
+                continue
+        else: # reached new ticker
+            prev_symbol = symbol # update prev_symbol
+            name = df.iloc[index]['Name']
+            MC = df.iloc[index]['Market cap']
+            print('MC', MC)
+            increment = 0 # reset counter
+
+    df = pd.DataFrame(fundamentals)
+    df.columns = ['Symbol', 'Name', 'Market cap', 'Total current liabilities', 'Total fixed liabilities', 'Cash', 'EBIT', 'EBIT/EV ratio', 'Net working capital', 'Net assets', 'Return on Capital']
+    return df
+
 def main():
     start = timeit.default_timer()
 
