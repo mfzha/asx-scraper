@@ -168,10 +168,10 @@ def scrape_basics(symbol, url):
 
             if test == 'Market cap':
                 (cap,) = el[1].xpath('.//span/text()[1]')
-                if str(cap).endswith('B'): # market cap in the billions
-                    mc = int(float(str(cap).strip('B'))*(10**9))
-                if str(cap).endswith('M'): # market cap in the millions
+                if str(cap).endswith('B'): # market cap in the billions, but Yahoo Finance stores numbers in thousands
                     mc = int(float(str(cap).strip('B'))*(10**6))
+                if str(cap).endswith('M'): # market cap in the millions, but as above
+                    mc = int(float(str(cap).strip('B'))*(10**3))
                 parsed_row.append(mc)
 
                 break
