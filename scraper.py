@@ -215,13 +215,13 @@ def scrape_symbol(symbol):
     }
 
     # Get all financial statements
-    for key in symbol_statements:
+    for key in symbol_statements:      
         if key.endswith('AX'):
             url = 'https://au.finance.yahoo.com/quote/' + symbol + '?p=' + symbol
             symbol_statements[key] = scrape_basics(symbol, url).set_index('Date') # require setting index to deal with column overlap on the merge
         else:
-        url = 'https://au.finance.yahoo.com/quote/' + symbol + '/' + key + '?p=' + symbol
-        symbol_statements[key] = scrape_table(url).set_index('Date')
+            url = 'https://au.finance.yahoo.com/quote/' + symbol + '/' + key + '?p=' + symbol
+            symbol_statements[key] = scrape_table(url).set_index('Date')
         print('Scraped URL', url)
     # Make one DataFrame to combine all financials
     df = symbol_statements[symbol] \
@@ -326,7 +326,7 @@ def pick_stocks(df):
     df.sort_values(by=['Return on capital'], ascending=False, inplace=True, ignore_index=True) # sort by RoC
     for i in range(len(df.index)): # assign RoC rank
         df.at[i, 'RoC rank'] = i + 1
-    
+       
     df['Aggregate rank'] = df['EBIT/EV rank'] + df['RoC rank'] # Build dataframe by vectorising
 
     df.drop(columns = ['EBIT', 'Return on capital', 'EBIT/EV ratio'])
@@ -346,19 +346,33 @@ def get_symbols(text_file):
     return symbols
 
 def main():
-    start = timeit.default_timer()
+    start = timeit.default_timer()  
 
     text_file = 'stocks.txt'
     symbols = get_symbols(text_file)
-    df = scrape_multiple(symbols) 
     
-    # Write to excel sheet
     date = datetime.today().strftime('%Y-%m-%d')
+
+    with pd.ExcelWriter(date + '.xlsx') as writer:
+        
+        # Step 1: Scrape data
+        df = scrape_multiple(symbols)
         stop_scrape = timeit.default_timer()
         print('Time to execute scrape:', stop_scrape - start)
-    writer.save()
+        
+        df.to_excel(writer, sheet_name='Raw Data')
+        writer.save()
 
-    stop = timeit.default_timer()
+    with pd.ExcelWriter(date + '.xlsx', mode='a') as writer:
+        # Step 2: Compute fundamentals
+        fundamentals = compute_fundamentals(df)
+        fundamentals.to_excel(writer, sheet_name='Fundamental Analysis')
+        writer.save()
+
+        # Step 3: Rank them
+        ranks = pick_stocks(fundamentals)
+        ranks.to_excel(writer, sheet_name='Ranks')
+        writer.save()
 
     stop_excel = timeit.default_timer()
 
