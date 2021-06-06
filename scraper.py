@@ -288,11 +288,9 @@ def compute_fundamentals(df):
                 intangibles = sanity_check(df.iloc[index]['Intangible assets']) # must check if exists
                 cash = df.iloc[index]['Cash and cash equivalents']
                 EBIT = df.iloc[index]['Operating income or loss']
-                print('EBIT', EBIT)
 
                 # Compute the following
                 EV = MC + total_current_liabilities + total_fixed_liabilities - cash
-                print('EV', EV)
                 EBIT_EV = EBIT/EV
                 NWC = total_current_assets - total_current_liabilities
                 NA = total_fixed_assets - goodwill - intangibles
@@ -305,7 +303,6 @@ def compute_fundamentals(df):
             prev_symbol = symbol # update prev_symbol
             name = df.iloc[index]['Name']
             MC = df.iloc[index]['Market cap']
-            print('MC', MC)
             increment = 0 # reset counter
 
     df = pd.DataFrame(fundamentals)
