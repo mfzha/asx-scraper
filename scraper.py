@@ -1,14 +1,13 @@
-from datetime import date, datetime
-import timeit
-import time
-import threading
 import concurrent.futures
-import lxml
-from lxml import html
-import requests
+from datetime import date
+import random
+import time
+import timeit
+
 import numpy as np
 import pandas as pd
-import random
+import requests
+from lxml import html
 
 def get_page(url):
     '''
@@ -29,7 +28,8 @@ def get_page(url):
 
     # Set up HTTP GET headers
     headers = {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,\
+            */*;q=0.8,application/signed-exchange;v=b3',
         'Accept-Encoding': 'gzip, deflate, br',
         'Accept-Language': 'en-US,en;q=0.9',
         'Cache-Control': 'max-age=0',
@@ -78,9 +78,9 @@ def parse_rows(table_rows):
         parsed_row = []
         # grab the current div
         el = table_row.xpath("./div")
-            
+
         none_count = 0
-        
+
         for rs in el:
             try:
                 # The numbers/values are held in span classes
@@ -101,8 +101,8 @@ def parse_rows(table_rows):
 
                 if test in completed_rows: # duplicate entry
                     parsed_row.append(test + ' (duplicate)')
-                    duplicate = 1    
-               
+                    duplicate = 1
+
                 try: # if it's an integer, then don't do anything special
                     int(test)
                 except ValueError:
@@ -115,11 +115,11 @@ def parse_rows(table_rows):
                 # Some rows have no values: we still want these 
                 parsed_row.append(np.NaN)
                 none_count += 1
-        
+
         # Every row has four columns, we still add the row if no data is available
-        if (none_count < 4):
+        if none_count < 4:
             parsed_rows.append(parsed_row)
-        
+
     return pd.DataFrame(parsed_rows)
 
 def clean_data(df):
@@ -138,7 +138,7 @@ def clean_data(df):
     df = df.set_axis(cols, axis='columns', inplace=False)
 
     # Convert the data types of everything (except dates) to numeric (float64)
-    numeric_columns = list(df.columns)[1::] # Take all columns, except the first (which is the 'Date' column)
+    numeric_columns = list(df.columns)[1::]
 
     for column_name in numeric_columns:
         df[column_name] = df[column_name].str.replace(',', '') # Remove the thousands separator
@@ -156,6 +156,7 @@ def scrape_table(url):
 
     return df
 
+def scrape_basics(url):
     '''
     Similar function to scrape_page().
     Purpose: grab Name and Market Cap from ticker.
@@ -163,7 +164,7 @@ def scrape_table(url):
     '''
     page = get_page(url)
     tree = html.fromstring(page.content)
-    
+
     # Find name:
     names = tree.xpath("//div[contains(@class, 'D(ib)')]")
     parsed_name_rows = []
@@ -171,7 +172,7 @@ def scrape_table(url):
         parsed_row = ['Name']
         # grab the current div
         el = table_row.xpath("./div")
-        exit = 0
+        name_found = 0
 
         if el: 
             for rs in el:
@@ -179,16 +180,16 @@ def scrape_table(url):
                     # Find the name
                     (text,) = rs.xpath('.//h1/text()[1]')
                     parsed_row.append(str(text).replace(',',''))
-                    exit = 1
+                    name_found = 1
                     break
-                except Exception as e:
+                except Exception:
                     continue
-        
-        if exit == 1:
+
+        if name_found == 1:
             parsed_name_rows.append(parsed_row)
             break
-    
-    # Market Cap: 
+
+    # Market Cap:
     market_cap = tree.xpath("//tr[contains(@class, 'Bxz(bb)')]")
 
     parsed_market_cap_rows = []
@@ -208,21 +209,21 @@ def scrape_table(url):
 
             if test == 'Market cap':
                 (cap,) = el[1].xpath('.//span/text()[1]')
-                if str(cap).endswith('B'): # market cap in the billions, but Yahoo Finance stores numbers in thousands
+                if str(cap).endswith('B'): # Yahoo Finance stores numbers in thousands
                     mc = int(float(str(cap).strip('B'))*(10**6))
-                if str(cap).endswith('M'): # market cap in the millions, but as above
+                if str(cap).endswith('M'):
                     mc = int(float(str(cap).strip('B'))*(10**3))
                 parsed_row.append(mc)
 
                 break
-            
+
     parsed_market_cap_rows.append(parsed_row)
 
     #df_symbol = pd.DataFrame([['Symbol', symbol]])
     df_date = pd.DataFrame([['Date', date.today().strftime('%d/%m/%Y')]])
     df_name = pd.DataFrame(parsed_name_rows)
     df_mc = pd.DataFrame(parsed_market_cap_rows)
-    
+
     df = pd.concat([df_date, df_name, df_mc], sort=True)
 
     df = df.set_index(0) # Match indexing of the other DataFrames
@@ -246,22 +247,26 @@ def scrape_symbol(symbol):
     for key in symbol_statements:      
         if key.endswith('AX'):
             url = 'https://au.finance.yahoo.com/quote/' + symbol + '?p=' + symbol
-            symbol_statements[key] = scrape_basics(symbol, url).set_index('Date') # require setting index to deal with column overlap on the merge
+            symbol_statements[key] = scrape_basics(url).set_index('Date') 
+            # require setting index to deal with column overlap on the merge
         else:
             url = 'https://au.finance.yahoo.com/quote/' + symbol + '/' + key + '?p=' + symbol
             symbol_statements[key] = scrape_table(url).set_index('Date')
         print('Scraped URL', url)
     # Make one DataFrame to combine all financials
     df = symbol_statements[symbol] \
-        .join(symbol_statements['balance-sheet'], on='Date', how='outer', rsuffix=' - Balance Sheet') \
-        .join(symbol_statements['financials'], on='Date', how='outer', rsuffix=' - Income Statement') \
-        .join(symbol_statements['cash-flow'], on='Date', how='outer', rsuffix=' - Cash Flow') \
+        .join(symbol_statements['balance-sheet'], on='Date', \
+            how='outer', rsuffix=' - Balance Sheet') \
+        .join(symbol_statements['financials'], on='Date', \
+            how='outer', rsuffix=' - Income Statement') \
+        .join(symbol_statements['cash-flow'], on='Date', \
+            how='outer', rsuffix=' - Cash Flow') \
         .dropna(axis=1, how='all') \
         .reset_index()
-    
+
     # Add identifier
     df.insert(1, 'Symbol', symbol)
-    
+
     return df
 
 def scrape_multiple(symbols):
@@ -273,7 +278,7 @@ def scrape_multiple(symbols):
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
         future_to_scrape = {executor.submit(scrape_symbol, symbol): symbol for symbol in symbols}
-        
+
         for future in concurrent.futures.as_completed(future_to_scrape):
             time.sleep(random.uniform(4,10)) # Don't be too greedy
             scrape = future_to_scrape[future]
@@ -282,8 +287,8 @@ def scrape_multiple(symbols):
                 symbol_data.append(data)
             except Exception as e:
                 print('%r generated an exception: %s' % (scrape, e))
-    
-    return pd.concat([df for df in symbol_data], sort=False)
+
+    return pd.concat(symbol_data, sort=False)
 
 def sanity_check(element):
     '''
@@ -306,9 +311,9 @@ def compute_fundamentals(df):
     fundamentals = []
 
     for index in range(len(df.index)):
-        
+
         symbol = df.iloc[index]['Symbol']
-    
+
         if symbol == prev_symbol: # same ticker as before
             increment += 1
             if increment == 1: # haven't retrieved data yet
@@ -317,8 +322,8 @@ def compute_fundamentals(df):
                 total_fixed_assets = df.iloc[index]['Total non-current assets']
                 total_current_liabilities = df.iloc[index]['Total current liabilities']
                 total_fixed_liabilities = df.iloc[index]['Total non-current liabilities']
-                goodwill = sanity_check(df.iloc[index]['Goodwill']) # must check if exists
-                intangibles = sanity_check(df.iloc[index]['Intangible assets']) # must check if exists
+                goodwill = sanity_check(df.iloc[index]['Goodwill'])
+                intangibles = sanity_check(df.iloc[index]['Intangible assets'])
                 cash = df.iloc[index]['Cash and cash equivalents']
                 EBIT = df.iloc[index]['Operating income or loss']
 
@@ -329,7 +334,9 @@ def compute_fundamentals(df):
                 NA = total_fixed_assets - goodwill - intangibles
                 RoC = EBIT/(NWC + NA)
 
-                fundamentals.append([symbol, name, MC, total_current_liabilities, total_fixed_liabilities, cash, EBIT, EBIT_EV, NWC, NA, RoC])
+                fundamentals.append([symbol, name, MC, \
+                    total_current_liabilities, total_fixed_liabilities, \
+                    cash, EBIT, EBIT_EV, NWC, NA, RoC])
             else:
                 continue
         else: # reached new ticker
@@ -339,13 +346,17 @@ def compute_fundamentals(df):
             increment = 0 # reset counter
 
     df = pd.DataFrame(fundamentals)
-    df.columns = ['Symbol', 'Name', 'Market cap', 'Total current liabilities', 'Total fixed liabilities', 'Cash', 'EBIT', 'EBIT/EV ratio', 'Net working capital', 'Net assets', 'Return on capital']
+    df.columns = ['Symbol', 'Name', 'Market cap', \
+        'Total current liabilities', 'Total fixed liabilities', \
+            'Cash', 'EBIT', 'EBIT/EV ratio', \
+                'Net working capital', 'Net assets', \
+                    'Return on capital']
     return df
 
 def pick_stocks(df):
     '''
     Purpose: computes ranks and sorts the DataFrame
-    input: Pandas DataFrame 
+    input: Pandas DataFrame
         [symbol, name, Market Cap, Current debt, Fixed debt, Cash, 
         EBIT, EV, EBIT/EV, NWC, NA, RoC]
     output: Pandas DataFrame
@@ -354,19 +365,26 @@ def pick_stocks(df):
         Current debt, Fixed debt, Cash, NWC, NA] 
         sorted by aggregate rank
     '''
+    # sort by EBIT/EV
+    df.sort_values(by=['EBIT/EV ratio'], ascending=False, \
+        inplace=True, ignore_index=True)
         # inplace=True since we want to preserve this DataFrame
         # ignore_index=True so that the assignment of ranks works correctly in the following loop
     for i in range(len(df.index)): # assign EBIT/EV rank
         df.at[i, 'EBIT/EV rank'] = i + 1
-      
-    df.sort_values(by=['Return on capital'], ascending=False, inplace=True, ignore_index=True) # sort by RoC
+
+    df.sort_values(by=['Return on capital'], ascending=False, \
+        inplace=True, ignore_index=True) # sort by RoC
     for i in range(len(df.index)): # assign RoC rank
         df.at[i, 'RoC rank'] = i + 1
-       
+
     df['Aggregate rank'] = df['EBIT/EV rank'] + df['RoC rank'] # Build dataframe by vectorising
 
     df.drop(columns = ['EBIT', 'Return on capital', 'EBIT/EV ratio'])
-    cols = ['Aggregate rank', 'EBIT/EV rank', 'RoC rank', 'Symbol', 'Name', 'Market cap', 'Total current liabilities', 'Total fixed liabilities', 'Cash', 'Net working capital', 'Net assets']
+    cols = ['Aggregate rank', 'EBIT/EV rank', 'RoC rank', \
+        'Symbol', 'Name', 'Market cap', \
+            'Total current liabilities', 'Total fixed liabilities', 'Cash', \
+                'Net working capital', 'Net assets']
     df = df[cols]
 
     return df.sort_values(by=['Aggregate rank'], ignore_index=True) # Sort by aggregate rank
@@ -388,24 +406,21 @@ def main():
     '''
     Driver code
     '''
-    start = timeit.default_timer()  
-
+    start = timeit.default_timer()
     text_file = 'stocks.txt'
     symbols = get_symbols(text_file)
-    
-    date = datetime.today().strftime('%Y-%m-%d')
 
-    with pd.ExcelWriter(date + '.xlsx') as writer:
-        
+    with pd.ExcelWriter('watchlist.xlsx') as writer:
+
         # Step 1: Scrape data
         df = scrape_multiple(symbols)
         stop_scrape = timeit.default_timer()
         print('Time to execute scrape:', stop_scrape - start)
-        
+
         df.to_excel(writer, sheet_name='Raw Data')
         writer.save()
 
-    with pd.ExcelWriter(date + '.xlsx', mode='a') as writer:
+    with pd.ExcelWriter('watchlist.xlsx', mode='a') as writer:
         # Step 2: Compute fundamentals
         fundamentals = compute_fundamentals(df)
         fundamentals.to_excel(writer, sheet_name='Fundamental Analysis')
