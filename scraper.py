@@ -273,6 +273,10 @@ def scrape_multiple(symbols):
     '''
     Multithreaded function to scrape symbols from a list.
     This is relatively conservative in the sleep time.
+    Since our jobs are not processor bound (we wait ~0.3 seconds for the GET request),
+        multi-threading will speed this up.
+    We don't need to deal with any concurrency issues, since
+        appending to a list is a thread-safe operation!
     '''
     symbol_data = []
 
