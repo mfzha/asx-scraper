@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 import timeit
 import time
 import threading
@@ -222,7 +222,7 @@ def scrape_symbol(symbol):
         else:
         url = 'https://au.finance.yahoo.com/quote/' + symbol + '/' + key + '?p=' + symbol
         symbol_statements[key] = scrape_table(url).set_index('Date')
-
+        print('Scraped URL', url)
     # Make one DataFrame to combine all financials
     df = symbol_statements[symbol] \
         .join(symbol_statements['balance-sheet'], on='Date', how='outer', rsuffix=' - Balance Sheet') \
@@ -357,29 +357,16 @@ def main():
     
     # Write to excel sheet
     date = datetime.today().strftime('%Y-%m-%d')
-    writer = pd.ExcelWriter(date + '.xlsx')
-    df.to_excel(writer)
+        stop_scrape = timeit.default_timer()
+        print('Time to execute scrape:', stop_scrape - start)
     writer.save()
 
     stop = timeit.default_timer()
 
-    # Compute fundamentals for the _most recent year_ (exclude ttm)
-    # TODO: locate on my data: total current assets, total non-current assets, total current liabilities, total non-current liabilities, cash & cash equivalents
-    # TODO: find Market Cap (on statistics page), requires one more scrape
-    # TODO: compute EBIT = operating income or loss
-    # TODO: compute EV = MC + Total Debt - Cash
-    # TODO: compute EBIT:EV ratio
-    # TODO: compute NWC = current assets - total current liabilities
-    # TODO: compute NA (net assets) = total non-current assets - goodwill (if any) - intangibles (if any)
-    # TODO: compute RoC = EBIT(NWC + NA)
+    stop_excel = timeit.default_timer()
 
-    # Compute ranks
-    # TODO: Find EBIT/EV ranks
-    # TODO: Find RoC ranks
-    # TODO: Compute aggregate ranks
-    # TODO: Sort descending
+    return print('Time to run analysis and export to Excel:', stop_excel - stop_scrape)
 
-    return print('Time to execute: ', stop - start)
 
 if __name__ == '__main__':
     main()
