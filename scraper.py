@@ -1,12 +1,28 @@
 from datetime import datetime
 import timeit
+import time
+import threading
+import concurrent.futures
 import lxml
 from lxml import html
 import requests
 import numpy as np
 import pandas as pd
+import random
 
 def get_page(url):
+    # Set up user agent list
+    user_agent_list = [
+        'Mozilla/5.0 (X11; Linux x86_64; rv:88.0) Gecko/20100101 Firefox/88.0',
+        'Mozilla/5.0 (X11; Linux x86_64; rv:87.0) Gecko/20100101 Firefox/87.0',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:53.0) Gecko/20100101 Firefox/88.0',
+    ]
+    referer_list = [
+        'https://au.finance.yahoo.com',
+        'https://duckduckgo.com/',
+        'https://www.google.com'
+    ]
+
     # Set up HTTP GET headers
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
@@ -14,8 +30,8 @@ def get_page(url):
         'Accept-Language': 'en-US,en;q=0.9',
         'Cache-Control': 'max-age=0',
         'Pragma': 'no-cache',
-        'Referer': 'https://au.finance.yahoo.com',
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:88.0) Gecko/20100101 Firefox/88.0'
+        'Referer': random.choice(referer_list),
+        'User-Agent': random.choice(user_agent_list)
     }
 
     # Fetch page
@@ -222,7 +238,21 @@ def scrape_symbol(symbol):
 
 def scrape_multiple(symbols):
     # Make one DataFrame to combine financial statements from a list of symbols
-    return pd.concat([scrape_symbol(symbol) for symbol in symbols], sort=False)
+    symbol_data = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
+        future_to_scrape = {executor.submit(scrape_symbol, symbol): symbol for symbol in symbols}
+        
+        for future in concurrent.futures.as_completed(future_to_scrape):
+            time.sleep(random.uniform(4,10)) # Don't be too greedy
+            scrape = future_to_scrape[future]
+            try:
+                data = future.result()
+                symbol_data.append(data)
+            except Exception as e:
+                print('%r generated an exception: %s' % (scrape, e))
+    
+    return pd.concat([df for df in symbol_data], sort=False)
 
 def sanity_check(element):
     if not isinstance(element, int):
