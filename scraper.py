@@ -308,11 +308,21 @@ def pick_stocks(df):
 
     return df.sort_values(by=['Aggregate rank'], ignore_index=True) # Sort by aggregate rank
 
+def get_symbols(text_file):
+    symbols = []
+    with open(text_file) as file:
+        for line in file:
+            line = line.strip()
+            if not line.endswith('.AX'): # Yahoo Finance appends .AX to all ASX stocks
+                line += '.AX'
+            symbols.append(line)
+    return symbols
+
 def main():
     start = timeit.default_timer()
 
-    # TODO: generate list of symbols based on all mid and high cap tickers
-    symbols = ['JBH.AX', 'SUL.AX', 'RMD.AX', 'DOW.AX']
+    text_file = 'stocks.txt'
+    symbols = get_symbols(text_file)
     df = scrape_multiple(symbols) 
     
     # Write to excel sheet
