@@ -11,6 +11,10 @@ import pandas as pd
 import random
 
 def get_page(url):
+    '''
+    Sets up GET request and sends to specified URL.
+    Returns a requests object for parsing.
+    '''
     # Set up user agent list
     user_agent_list = [
         'Mozilla/5.0 (X11; Linux x86_64; rv:88.0) Gecko/20100101 Firefox/88.0',
@@ -38,8 +42,10 @@ def get_page(url):
     return requests.get(url, headers)
 
 def scrape_page(page):
-    # Convert page to readable data structure
-    # tree will contain the entire HTML file of the page in a tree structure
+    '''
+    Converts requests object to a readable data structure tree.
+    tree will contain the entire HTML file of the page in a tree structure
+    '''
     tree = html.fromstring(page.content)
 
     # Sanity check
@@ -50,7 +56,8 @@ def scrape_page(page):
 
     # The table rows of the balance sheet, income statement, and CFS have class 'D(tbr)'
     # Using the // expresion of XPath we select all divs which contain the D(tbr) @class attribute
-    # Note: this may change in future, will need to manually inspect page source and find new class if so
+    # Note: this may change in the future.
+    # If so, you will need to manually inspect page source and find new class if so
     table_rows = tree.xpath("//div[contains(@class, 'D(tbr)')]")
 
     # Check that we do have rows
@@ -60,6 +67,10 @@ def scrape_page(page):
     return table_rows
 
 def parse_rows(table_rows):
+    '''
+    Parses the tables obtained from iterating over the tree data structure.
+    Returns a pandas DataFrame.
+    '''
     parsed_rows = []
     completed_rows = []
 
@@ -78,10 +89,11 @@ def parse_rows(table_rows):
 
                 # Pandas (by design) does not allow duplicate column names
                 # Unfortunately financial statements do, e.g. "Deferred revenues"
-                # The purpose of the following block is to detect duplicate entries and mark them as so
+                # The purpose of the following block is to detect duplicate entries
+                #  and mark them as so,
                 #   whilst simultaneously casting headers to strings.
-                # This is a pretty hacky workaround.
-                # TODO: Fix it.
+                # This is a pretty hacky workaround, but since our analysis does not require it,
+                #   we don't need to touch it.
 
                 test = str(text).replace(',','')
 
@@ -111,6 +123,12 @@ def parse_rows(table_rows):
     return pd.DataFrame(parsed_rows)
 
 def clean_data(df):
+    '''
+    Simple function to clean a DataFrame.
+    We transpose it and convert entries to floats where necessary.
+    After transposing, drop the first column (the 'Date' column)
+    '''
+
     df = df.set_index(0) # Set the index to the first column: 'Period Ending'.
     df = df.transpose() # Transpose the DataFrame, so that our header contains the account names
 
@@ -129,14 +147,20 @@ def clean_data(df):
     return df
 
 def scrape_table(url):
+    '''
+    Helper function to return a cleaned DataFrame from a URL.
+    '''
     page = get_page(url) # Step 1: Fetch page
     df = parse_rows(scrape_page(page)) # Step 2: Parse data
     df = clean_data(df) # Step 3: Clean data
 
     return df
 
-def scrape_basics(symbol, url):  
-    # Repeat similar process to the scrape_page() function
+    '''
+    Similar function to scrape_page().
+    Purpose: grab Name and Market Cap from ticker.
+    We modify the function since the format of the summary page is different.
+    '''
     page = get_page(url)
     tree = html.fromstring(page.content)
     
@@ -207,6 +231,10 @@ def scrape_basics(symbol, url):
     return df
 
 def scrape_symbol(symbol):
+    '''
+    Main function to scrape all financials of one stock.
+    Returns a pandas DataFrame of all financials and summary.
+    '''
     symbol_statements = {
         symbol : None,
         'financials': None,
@@ -237,7 +265,10 @@ def scrape_symbol(symbol):
     return df
 
 def scrape_multiple(symbols):
-    # Make one DataFrame to combine financial statements from a list of symbols
+    '''
+    Multithreaded function to scrape symbols from a list.
+    This is relatively conservative in the sleep time.
+    '''
     symbol_data = []
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
@@ -255,17 +286,19 @@ def scrape_multiple(symbols):
     return pd.concat([df for df in symbol_data], sort=False)
 
 def sanity_check(element):
+    '''
+    Simple helper function to ensure we always get an integer.
+    '''
     if not isinstance(element, int):
         element = 0
     return element
 
 def compute_fundamentals(df):
     '''
+    Purpose: Compute fundamentals for the _most recent year_ (exclude ttm)
     input: Pandas DataFrame
     output: Pandas DataFrame
         [symbol, name, Market Cap, Current debt, Fixed debt, Cash, EBIT, EV, EBIT:EV, NWC, NA, RoC]
-    
-    Compute fundamentals for the _most recent year_ (exclude ttm)
     '''
 
     prev_symbol = ''
@@ -311,15 +344,18 @@ def compute_fundamentals(df):
 
 def pick_stocks(df):
     '''
+    Purpose: computes ranks and sorts the DataFrame
     input: Pandas DataFrame 
-        [symbol, name, Market Cap, Current debt, Fixed debt, Cash, EBIT, EV, EBIT/EV, NWC, NA, RoC]
+        [symbol, name, Market Cap, Current debt, Fixed debt, Cash, 
+        EBIT, EV, EBIT/EV, NWC, NA, RoC]
     output: Pandas DataFrame
-        [aggregate rank, EBIT/EV rank, RoC rank, symbol, name, Market Cap, Current debt, Fixed debt, Cash, NWC, NA] 
+        [aggregate rank, EBIT/EV rank, 
+        RoC rank, symbol, name, Market Cap, 
+        Current debt, Fixed debt, Cash, NWC, NA] 
         sorted by aggregate rank
     '''
-
-    df.sort_values(by=['EBIT/EV ratio'], ascending=False, inplace=True, ignore_index=True) # sort by EBIT/EV
-    # we sort with ignore_index=True so that the assignment of ranks works correctly in the following loop
+        # inplace=True since we want to preserve this DataFrame
+        # ignore_index=True so that the assignment of ranks works correctly in the following loop
     for i in range(len(df.index)): # assign EBIT/EV rank
         df.at[i, 'EBIT/EV rank'] = i + 1
       
@@ -336,6 +372,9 @@ def pick_stocks(df):
     return df.sort_values(by=['Aggregate rank'], ignore_index=True) # Sort by aggregate rank
 
 def get_symbols(text_file):
+    '''
+    Simple helper function to parse stock tickers from a text file.
+    '''
     symbols = []
     with open(text_file) as file:
         for line in file:
@@ -346,6 +385,9 @@ def get_symbols(text_file):
     return symbols
 
 def main():
+    '''
+    Driver code
+    '''
     start = timeit.default_timer()  
 
     text_file = 'stocks.txt'
