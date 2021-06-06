@@ -18,7 +18,7 @@ Some functions based on code excerpts from Matt Button's "How to scrape Yahoo Fi
 ## Todo
 
 **Long term**:
-* Retrieve stock tickers for all mid and high cap stocks
+* Retrieve stock tickers for all mid and high cap stocks (there should be a way to scrape this directly but I haven't found a nice source yet. For now, it's easier to export a list of the ASX 100 (all mid and high cap stocks) to a spreadsheet and copy that to a textfile.)
 
 **Janitorial**:
 * Clean up `scrape_basics()` function
